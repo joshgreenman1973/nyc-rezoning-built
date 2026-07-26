@@ -1,0 +1,42 @@
+name: Refresh rezoning data
+
+on:
+  schedule:
+    # Monthly. The housing database updates quarterly and the zoning map
+    # amendment layer only when the City Planning Commission adopts something.
+    - cron: "23 6 3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install shapely pyproj
+
+      - name: Fetch source data
+        run: python3 scripts/fetch.py
+
+      - name: Spatial join and build
+        run: python3 scripts/build.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/data
+          if git diff --staged --quiet; then
+            echo "No change."
+          else
+            git commit -m "Refresh rezoning data $(date -u +%Y-%m-%d)"
+            git push
+          fi
