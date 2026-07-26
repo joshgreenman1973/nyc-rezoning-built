@@ -10,7 +10,7 @@ effective date are what that rezoning built. Units completed before it are
 kept separately as the "before" picture.
 
 Two traps this handles explicitly:
-  - Overlapping rezonings. Roughly a fifth of the city's rezoned land has
+  - Overlapping rezonings. About 15 percent of the city's rezoned land has
     been rezoned more than once. A job inside two boundaries counts toward
     both at the per-rezoning level, so citywide totals are deduplicated by
     job number rather than summed across rezonings.
@@ -119,12 +119,18 @@ def main():
           f"(skipped {skipped_nodate} with no date)")
 
     # ---- DCP purpose classification (2002-2013) ----------------------------
+    # DCP's own file carries a borough-letter typo: Hudson Square is filed as
+    # 030237zmn, while the boundary layer has 030237zmm. Without this alias the
+    # city's classification of that rezoning is silently lost.
+    ULURP_ALIASES = {"030237zmn": "030237zmm"}
+
     purpose = {}
     for b in bloomberg:
         a = b.get("attributes") or b.get("properties") or b
         u = (a.get("ULURPNO") or "").strip().lower()
         if not u:
             continue
+        u = ULURP_ALIASES.get(u, u)
         purpose[u] = norm_purpose(a.get("Purpose") or a.get("Z_Category"))
     matched_purpose = sum(1 for r in rez if r["ulurp"] in purpose)
     print(f"DCP purpose labels: {len(purpose)}, matched to a polygon: {matched_purpose}")
@@ -190,7 +196,9 @@ def main():
         r["mih"] = i in mih_hits
         r["dcp_lower_density"] = bool(p and p["lower_density"])
         r["dcp_housing"] = bool(p and p["housing"])
-        r["classified"] = bool(p) or r["mih"]
+        # "Central Business Distrists" and "Other" carry a DCP label but no
+        # direction, so they display as unclassified and must count as such.
+        r["classified"] = None  # set after kind is decided
         # A single label for display. MIH and DCP "housing opportunities" both
         # mean capacity was added; "lower density" alone means it was removed.
         # Fifteen Bloomberg-era plans did both, typically lowering density on
@@ -204,6 +212,7 @@ def main():
             r["kind"] = "density lowered"
         else:
             r["kind"] = "unclassified"
+        r["classified"] = r["kind"] != "unclassified"
 
     # ---- completed housing -------------------------------------------------
     pts, jobs = [], []
@@ -239,7 +248,9 @@ def main():
         r["after_jobs"] = 0
         r["before_net"] = 0.0
         r["by_year"] = collections.defaultdict(float)
+        r["job_ix"] = set()
     inside_any = set()
+    inside_after = set()   # counted only where the rezoning already applied
 
     for ri, r in enumerate(rez):
         cand = pt_tree.query(r["geom_ft"])
@@ -256,6 +267,8 @@ def main():
                 r["after_net"] += j["net"]
                 r["after_jobs"] += 1
                 r["by_year"][j["year"]] += j["net"]
+                r["job_ix"].add(pi)
+                inside_after.add(pi)
             else:
                 r["before_net"] += j["net"]
 
@@ -270,12 +283,13 @@ def main():
     floor_dt = datetime(HOUSING_FLOOR, 1, 1, tzinfo=timezone.utc).date()
 
     rows = []
-    for r in rez:
+    for _i, r in enumerate(rez):
         eff_dt = datetime.fromisoformat(r["effective"]).date()
         observed_start = max(eff_dt, floor_dt)
         years_since = max((last_dt - observed_start).days / 365.25, 0)
         truncated = r["year"] < HOUSING_FLOOR
         rows.append({
+            "_i": _i,
             "ulurp": r["ulurp"],
             "name": r["name"] or r["ulurp"],
             "effective": r["effective"],
@@ -306,6 +320,27 @@ def main():
     # ---- cohort summaries --------------------------------------------------
     mature = [r for r in rows if r["mature"]]
 
+    def dedup_units(sel):
+        """Net units inside a group, counting each job once.
+
+        Boundaries overlap, so summing per-rezoning totals double counts
+        buildings that sit inside two amendments of the same kind.
+        """
+        ix = set()
+        for r in sel:
+            ix |= rez[r["_i"]]["job_ix"]
+        return sum(jobs[i]["net"] for i in ix)
+
+    def dedup_acres(sel):
+        from shapely.ops import unary_union
+        if not sel:
+            return 0.0
+        try:
+            u = unary_union([rez[r["_i"]]["geom_ft"] for r in sel])
+        except Exception:
+            return sum(r["acres"] for r in sel)
+        return u.area / SQFT_PER_ACRE
+
     def summarise(sel):
         acres = sum(r["acres"] for r in sel)
         units = sum(r["units"] for r in sel)
@@ -320,6 +355,15 @@ def main():
             "units_per_acre_per_year": round(units / acre_years, 4) if acre_years else None,
             "zero": sum(1 for r in sel if r["units"] <= 0),
             "median_units": sorted(r["units"] for r in sel)[len(sel) // 2] if sel else None,
+            "median_acres": round(sorted(r["acres"] for r in sel)[len(sel) // 2], 2)
+            if sel else None,
+            # Overlap-corrected: each job and each square foot counted once.
+            "units_dedup": round(dedup_units(sel), 1),
+            "acres_dedup": round(dedup_acres(sel), 1),
+            "units_per_acre_dedup": round(dedup_units(sel) / dedup_acres(sel), 3)
+            if sel and dedup_acres(sel) else None,
+            "median_rate": round(sorted(
+                (r["units_per_acre"] or 0) for r in sel)[len(sel) // 2], 3) if sel else None,
         }
 
     KINDS = ["more housing allowed", "both", "density lowered", "unclassified"]
@@ -331,9 +375,46 @@ def main():
         by_year[y] = {**summarise(sel),
                       "truncated": y < HOUSING_FLOOR}
 
-    # Citywide, deduplicated: how much of the city's housing landed inside any
-    # rezoning at all, counting each job once.
+    # Citywide, deduplicated. Two versions, because they answer different
+    # questions: everything inside a boundary, and everything inside a boundary
+    # that was already in effect when the building finished.
     net_inside = sum(jobs[i]["net"] for i in inside_any)
+    net_inside_after = sum(jobs[i]["net"] for i in inside_after)
+
+    # ---- sensitivity -------------------------------------------------------
+    # The per-acre ratio moves on two undisclosed choices: how many observed
+    # years a rezoning needs before it is judged, and whether plans that did
+    # both count as raising density. Both are published rather than buried.
+    sens_threshold = []
+    for thr in [0, 3, 5, 7, 10, 16]:
+        sel = [r for r in rows if r["years_observed"] >= thr]
+        up = summarise([r for r in sel if r["kind"] == "more housing allowed"])
+        dn = summarise([r for r in sel if r["kind"] == "density lowered"])
+        sens_threshold.append({
+            "years": thr, "up_n": up["n"], "up_rate": up["units_per_acre"],
+            "down_n": dn["n"], "down_rate": dn["units_per_acre"],
+            "ratio": round(up["units_per_acre"] / dn["units_per_acre"], 1)
+            if up["units_per_acre"] and dn["units_per_acre"] else None,
+        })
+
+    up_only = summarise([r for r in mature if r["kind"] == "more housing allowed"])
+    dn_only = summarise([r for r in mature if r["kind"] == "density lowered"])
+    up_with_both = summarise([r for r in mature
+                              if r["kind"] in ("more housing allowed", "both")])
+    sens_bucket = {
+        "both_excluded": {"ratio": round(up_only["units_per_acre"] / dn_only["units_per_acre"], 1),
+                          "up_acres": up_only["acres"], "up_rate": up_only["units_per_acre"]},
+        "both_as_up": {"ratio": round(up_with_both["units_per_acre"] / dn_only["units_per_acre"], 1),
+                       "up_acres": up_with_both["acres"], "up_rate": up_with_both["units_per_acre"]},
+        "dedup": {"ratio": round(up_only["units_per_acre_dedup"] / dn_only["units_per_acre_dedup"], 1)
+                  if up_only["units_per_acre_dedup"] and dn_only["units_per_acre_dedup"] else None},
+        "median_rate": {"up": up_only["median_rate"], "down": dn_only["median_rate"]},
+    }
+
+    # All rezonings, not just mature, so the deck can quote totals as totals.
+    all_up = summarise([r for r in rows if r["kind"] == "more housing allowed"])
+    all_both = summarise([r for r in rows if r["kind"] == "both"])
+    all_down = summarise([r for r in rows if r["kind"] == "density lowered"])
 
     headline = {
         "rezonings": len(rows),
@@ -358,6 +439,20 @@ def main():
         "citywide_net_units": round(total_net_all, 1),
         "net_units_inside_rezonings": round(net_inside, 1),
         "share_inside": round(100 * net_inside / total_net_all, 1) if total_net_all else None,
+        "net_units_inside_after": round(net_inside_after, 1),
+        "share_inside_after": round(100 * net_inside_after / total_net_all, 1)
+        if total_net_all else None,
+        # All rezonings, not only mature ones.
+        "all_acres_lowered": all_down["acres"],
+        "all_acres_more_housing": all_up["acres"],
+        "all_acres_both": all_both["acres"],
+        "all_n_lowered": all_down["n"],
+        "all_n_more_housing": all_up["n"],
+        "all_n_both": all_both["n"],
+        # Coverage disclosure.
+        "amendments_in_source": len(zma_raw),
+        "dropped_no_date": skipped_nodate,
+        "distinct_ulurps": len({r["ulurp"] for r in rez}),
         "housing_floor": HOUSING_FLOOR,
         "mature_years": MATURE_YEARS,
         "classified_n": sum(1 for r in rows if r["classified"]),
@@ -370,6 +465,7 @@ def main():
         "fetched_at": meta.get("fetched_at"),
         "headline": headline,
         "by_kind": by_kind,
+        "sensitivity": {"threshold": sens_threshold, "bucket": sens_bucket},
         "by_year": by_year,
         "rezonings": rows,
     }
@@ -380,13 +476,9 @@ def main():
 
     # geometry for the map, simplified
     feats = []
-    idx_by_ulurp = {}
-    for i, r in enumerate(rez):
-        idx_by_ulurp.setdefault(r["ulurp"], []).append(i)
     for row in rows:
-        for i in idx_by_ulurp.get(row["ulurp"], []):
-            if rez[i]["effective"] != row["effective"]:
-                continue
+        i = row["_i"]
+        if True:
             g = rez[i]["geom_wgs"].simplify(0.00012)
             if g.is_empty:
                 continue
@@ -398,7 +490,6 @@ def main():
                                "t": row["truncated"]},
                 "geometry": json.loads(json.dumps(_round_geom(g.__geo_interface__))),
             })
-            break
     gj = {"type": "FeatureCollection", "features": feats}
     gp = os.path.join(OUT, "rezonings.geojson")
     with open(gp, "w") as f:

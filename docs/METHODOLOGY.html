@@ -56,7 +56,7 @@ a{color:var(--up)}
 <h2>Sources</h2>
 <table>
 <tr><th>What</th><th>Source</th><th>Used for</th></tr>
-<tr><td>Adopted zoning map amendments</td><td>NYC Department of City Planning <code>nyzma</code> feature service</td><td>Boundaries, effective dates, ULURP numbers, names</td></tr>
+<tr><td>Adopted zoning map amendments</td><td>NYC Department of City Planning <code>nyzma</code> feature service</td><td>Boundaries, effective dates, ULURP numbers, names. The layer holds 1,385 adopted amendments; 149, all from 1977 to 1994, carry no effective date and are excluded because completions cannot be placed before or after them. The 1,236 shapes used represent 1,232 distinct ULURP numbers.</td></tr>
 <tr><td>Housing Database, project level</td><td>NYC Open Data <code>br6q-ssj3</code></td><td>Every completed residential job since 2010, geocoded, with net change in permanent units</td></tr>
 <tr><td>2002-2013 rezoning classification</td><td>DCP <code>Bloomberg_rezonings</code> feature service</td><td>The city's own statement of what each of those rezonings was for</td></tr>
 <tr><td>Mandatory Inclusionary Housing areas</td><td>NYC Open Data <code>m79g-k9r4</code></td><td>Identifying upzonings from 2016 onward</td></tr>
@@ -64,7 +64,7 @@ a{color:var(--up)}
 
 <h2>Geography</h2>
 <p>Boundaries and building points are projected from degrees to <b>EPSG:2263</b>, New York State Plane Long Island in US survey feet, before anything is measured. Acreage is therefore computed from a projected area, not approximated from latitude and longitude. Invalid polygons are repaired with a zero width buffer before use.</p>
-<p>A completed housing job is attributed to a rezoning when its point falls inside that rezoning's polygon. Containment is strict; a building on the boundary line is not counted twice by design.</p>
+<p>A completed housing job is attributed to a rezoning when its point falls strictly inside that rezoning's polygon. A point lying exactly on a boundary line would be counted zero times rather than twice. No point in the data is affected, but the rule is worth stating rather than implying.</p>
 
 <h2>Which completions count</h2>
 <p>A job counts toward a rezoning when its completion date is on or after the rezoning's effective date. Completions before that date are kept separately as a "before" figure and never mixed into the main count.</p>
@@ -74,25 +74,29 @@ a{color:var(--up)}
 <p>The Housing Database begins with completions in 2010. A rezoning adopted in 2004 therefore cannot have its first six years of construction counted, and its total is a floor rather than a full count. Two things follow:</p>
 <ul>
   <li>Such rezonings are flagged in the table as "counted from 2010".</li>
-  <li>Every rate is divided by <b>years actually observed</b>, measured from the later of the effective date and 1 January 2010, not by years since adoption. Without this, a 2003 rezoning would have its housing spread across 23 years while only 16 were visible, and would look worse than a 2018 rezoning purely because of the data's start date.</li>
+  <li>Observed years are measured from the later of the effective date and 1 January 2010, not from adoption. This is used to decide which rezonings are old enough to judge. The rates displayed on the site are homes per acre, <em>not</em> divided by observed years: dividing by them widens the gap between upzoned and downzoned land rather than narrowing it (about 23 to 1 instead of about 20 to 1), so the undivided figure is the more conservative of the two and is the one shown.</li>
 </ul>
 <p>A rezoning is called <b>mature</b>, and included in the group comparisons, once it has at least five observed years.</p>
 
 <h2>How purpose was classified</h2>
-<p>No purpose was inferred from the data. Every label comes from the city.</p>
+<p>Where the city states a purpose, that is the label used. Where it does not, one rule of inference is applied and named as such. No category was invented from the housing outcomes themselves, which would have made the comparison circular.</p>
 <ul>
-  <li><b>2002 to 2013:</b> DCP's own published classification of its rezoning programme, joined to the boundaries on ULURP number, which matches exactly. The source strings carry typographical inconsistencies ("Contexual" and "Contextual", "HousingOpportunities" and "Housing Opportunities"), so they are normalised to two independent flags rather than one tidy label.</li>
-  <li><b>2016 onward:</b> Mandatory Inclusionary Housing areas. MIH requires permanently affordable housing in exchange for added residential capacity, so an MIH area is an upzoning by construction.</li>
+  <li><b>2002 to 2013:</b> DCP's own published classification of its rezoning programme, joined to the boundaries on ULURP number. 139 of 140 match directly. The exception is a borough-letter typo in the city's own file, which files Hudson Square as <code>030237zmn</code> where the boundary layer has <code>030237zmm</code>; it is aliased explicitly rather than dropped, since dropping it would have silently discarded a rezoning the city did classify. The source strings carry typographical inconsistencies ("Contexual" and "Contextual", "HousingOpportunities" and "Housing Opportunities"), so they are normalised to two independent flags rather than one tidy label.</li>
+  <li><b>2016 onward:</b> Mandatory Inclusionary Housing areas. MIH requires permanently affordable housing in exchange for added residential capacity, so an MIH area is an upzoning by construction. Note that this is an inference of this project, not a label the city publishes: the city states no purpose for post-2016 rezonings, and this rule generates most of the upzonings in the comparison. Six of 275 MIH areas match no rezoning, only one of which is old enough to affect any figure here.</li>
   <li><b>Both:</b> fifteen plans carry both flags, typically lowering density on side streets while raising it on the avenues. They are reported as their own category rather than forced into one side.</li>
   <li><b>Unclassified:</b> everything else, which is most of the list. These are shown on the map and in the table but excluded from the comparison between raising and lowering density.</li>
 </ul>
 
 <h3>A correction worth recording</h3>
-<p>An early version of this analysis matched MIH areas to rezonings on geography alone. That silently handed MIH labels to large older rezonings that merely contain a later MIH area inside their boundary, including a 1995 Long Island City plan and a 2001 bulk amendment. It produced 330 MIH rezonings out of 275 MIH areas, which is impossible on its face and is what exposed the error. The match now also requires the rezoning to date from 2016 or later and to take effect within about a year of the MIH area's adoption. The corrected count is 257.</p>
+<p>An early version of this analysis matched MIH areas to rezonings on geography alone. That silently handed MIH labels to large older rezonings that merely contain a later MIH area inside their boundary, including a 1995 Long Island City plan and a 2001 bulk amendment. It produced 330 matches from 275 MIH areas. That count is not impossible in itself, since one MIH area can fall inside several overlapping boundaries, but the labels it produced were plainly wrong on inspection: rezonings adopted two decades before the MIH programme existed were being described as MIH upzonings. The match now also requires the rezoning to date from 2016 or later and to take effect within about a year of the MIH area's adoption. The corrected count is 257.</p>
 
 <h2>Overlapping boundaries</h2>
 <p>Land in New York City is often rezoned more than once, so the polygons overlap. At the level of an individual rezoning, a building inside two boundaries counts toward both, which is correct: both rezonings apply to that land.</p>
-<p>It follows that <b>the individual rows do not sum to the citywide total</b>. Any citywide figure on this site is deduplicated by job number, counting each completed building exactly once no matter how many boundaries contain it.</p>
+<p>It follows that <b>the individual rows do not sum to the citywide total</b>. Citywide figures are deduplicated by job number, counting each completed building exactly once no matter how many boundaries contain it. Group totals in the bars and the scaled squares are <em>not</em> deduplicated, because they are sums of the rows they describe. The gap is small for the classified groups, where deduplicating moves the ratio from about 19.8 to 19.4, and large for the unclassified pile, where it cuts 192,000 homes to 141,000 and 35,400 acres to 30,800.</p>
+
+<h2>The comparison's biggest weakness</h2>
+<p>The two groups being compared are not the same kind of object. A rezoning classified as allowing more housing has a median footprint of about 2.6 acres and is typically drawn tightly around a single development site. A downzoning has a median footprint of about 227 acres and encloses an entire existing neighbourhood that was already built out. Homes per acre therefore partly measures how tightly each boundary was drawn, and it favours the upzonings before any building is counted.</p>
+<p>The direction of the result is robust: it survives changing the maturity threshold from zero to sixteen years, counting the mixed plans as upzonings, deduplicating overlaps, and comparing medians instead of totals. The magnitude is not, ranging from about 11 to about 32 across those choices. The site publishes that whole range rather than a single multiple, and the opening paragraph deliberately states acreage instead.</p>
 
 <h2>What this cannot tell you</h2>
 <ul>
