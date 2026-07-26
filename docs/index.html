@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What rezoning built - every zoning map amendment in New York City, and the housing inside it</title>
+<meta name="description" content="Every adopted zoning map amendment in New York City since 1977, mapped against every residential unit completed inside its boundary since 2010.">
+<meta property="og:title" content="What rezoning built">
+<meta property="og:description" content="Every rezoning in New York City, and the housing that followed inside its lines.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;900&family=Barlow:wght@400;500;600&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --paper:#fbfbfc;
+  --ink:#15161a;
+  --ink-55:#61646c;
+  --line:#c9ccd2;
+  --up:#c8007a;      /* capacity added */
+  --down:#123a6b;    /* capacity lowered */
+  --both:#7a4fa8;    /* both, in different parts of the same plan */
+  --none:#9aa0a8;    /* not classified */
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;color:var(--ink);font-family:'Barlow',system-ui,sans-serif;
+  font-size:17px;line-height:1.5;
+  background:
+    linear-gradient(var(--paper) 0 0) padding-box,
+    repeating-linear-gradient(0deg,#eef0f3 0 1px,transparent 1px 28px),
+    repeating-linear-gradient(90deg,#eef0f3 0 1px,transparent 1px 28px),
+    var(--paper);
+}
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px}
+a{color:var(--up)}
+
+/* ---- title block, drawn like a drawing sheet title box ---- */
+.sheet{border:1.5px solid var(--ink);background:#fff;margin:22px 0 0}
+.sheet-top{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:7px 14px;border-bottom:1px solid var(--ink);
+  font-family:'Roboto Mono',monospace;font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-55)}
+h1{font-family:'Barlow Condensed',sans-serif;font-weight:900;
+  font-size:clamp(46px,9.2vw,116px);line-height:.86;letter-spacing:-.02em;
+  margin:20px 14px 8px;text-transform:uppercase}
+.deck{margin:0 14px 18px;max-width:40em;font-size:clamp(17px,2vw,21px)}
+.deck b{font-weight:600}
+.up{color:var(--up)} .down{color:var(--down)}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--ink)}
+.stat{padding:12px 14px 14px;border-right:1px solid var(--line)}
+.stat:last-child{border-right:none}
+.stat .l{font-family:'Roboto Mono',monospace;font-size:10px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink-55);display:block;margin-bottom:5px;min-height:3.2em}
+.stat .v{font-family:'Barlow Condensed',sans-serif;font-weight:900;
+  font-size:clamp(30px,4.2vw,48px);line-height:.95;letter-spacing:-.015em;
+  font-variant-numeric:tabular-nums}
+.stat .s{font-size:13px;color:var(--ink-55);margin-top:5px;line-height:1.3}
+
+section{margin:52px 0 0}
+.shead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+  border-bottom:1.5px solid var(--ink);padding-bottom:5px}
+h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;text-transform:uppercase;
+  font-size:clamp(27px,4vw,44px);letter-spacing:-.01em;margin:0;line-height:1}
+.shead .note{font-family:'Roboto Mono',monospace;font-size:10.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-55)}
+.intro{max-width:64em;margin:14px 0 16px}
+
+/* ---- map ---- */
+.mapshell{border:1.5px solid var(--ink);background:#fff}
+#map{height:min(76vh,700px);background:#f0f1f3}
+.mapbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:9px 12px;
+  border-bottom:1px solid var(--line)}
+.mapbar button{font-family:'Roboto Mono',monospace;font-size:10.5px;letter-spacing:.05em;
+  text-transform:uppercase;padding:6px 10px;border:1px solid var(--ink);background:#fff;
+  color:var(--ink);cursor:pointer}
+.mapbar button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.legend{display:flex;gap:16px;flex-wrap:wrap;padding:9px 12px;border-top:1px solid var(--line);
+  font-family:'Roboto Mono',monospace;font-size:10.5px;color:var(--ink-55);align-items:center}
+.legend i{width:14px;height:11px;display:inline-block;margin-right:5px;vertical-align:-1px;
+  border:1px solid var(--ink)}
+.leaflet-popup-content{font-family:'Barlow',sans-serif;margin:12px 14px}
+.pn{font-family:'Barlow Condensed',sans-serif;font-weight:900;text-transform:uppercase;
+  font-size:19px;line-height:1.05;margin-bottom:4px}
+.pr{font-family:'Roboto Mono',monospace;font-size:11px;color:var(--ink-55)}
+.pr b{color:var(--ink)}
+
+/* ---- land comparison ---- */
+.landwrap{border:1.5px solid var(--ink);background:#fff;padding:20px 18px}
+.landrow{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-end;justify-content:center}
+.landcell{text-align:center}
+.landsq{border:1.5px solid var(--ink);margin:0 auto 9px}
+.landlab{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+  font-size:15px;line-height:1.1}
+.landnum{font-family:'Roboto Mono',monospace;font-size:12px;color:var(--ink-55);margin-top:3px}
+
+/* ---- rate bars ---- */
+.rates{border:1.5px solid var(--ink);background:#fff;padding:16px 18px 20px}
+.rate{display:grid;grid-template-columns:minmax(120px,20%) 1fr auto;gap:14px;align-items:center;
+  padding:9px 0;border-bottom:1px solid #eceef1}
+.rate:last-child{border-bottom:none}
+.ratelab{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+  font-size:16px;line-height:1.05}
+.ratelab span{display:block;font-family:'Roboto Mono',monospace;font-size:10px;font-weight:400;
+  text-transform:none;color:var(--ink-55);margin-top:2px}
+.ratetrack{height:26px;position:relative}
+.ratefill{height:100%;position:absolute;left:0;top:0}
+.rateval{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;
+  font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
+
+/* ---- scatter ---- */
+.chartbox{border:1.5px solid var(--ink);background:#fff;padding:14px 16px 16px}
+.chartbox svg{display:block;width:100%;height:auto;overflow:visible}
+.ax{font-family:'Roboto Mono',monospace;font-size:9.5px;fill:var(--ink-55)}
+.gl{stroke:#e4e6ea;stroke-width:1}
+
+/* ---- table ---- */
+.tablewrap{overflow-x:auto;border:1.5px solid var(--ink);background:#fff}
+table{border-collapse:collapse;width:100%;min-width:740px;font-size:14.5px}
+th{text-align:left;font-family:'Roboto Mono',monospace;font-size:10px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-55);padding:9px 12px;border-bottom:1px solid var(--ink);
+  white-space:nowrap;cursor:pointer;background:#fff}
+th:hover{color:var(--ink)}
+td{padding:9px 12px;border-bottom:1px solid #eceef1;vertical-align:top}
+tr:last-child td{border-bottom:none}
+.mono{font-family:'Roboto Mono',monospace;font-variant-numeric:tabular-nums}
+.nm{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;font-size:16px;line-height:1.1}
+.chip{display:inline-block;font-family:'Roboto Mono',monospace;font-size:9px;letter-spacing:.05em;
+  text-transform:uppercase;padding:2px 5px;border:1px solid currentColor;white-space:nowrap}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;align-items:center}
+.filters button,.filters select{font-family:'Roboto Mono',monospace;font-size:10.5px;
+  letter-spacing:.05em;text-transform:uppercase;padding:6px 10px;border:1px solid var(--ink);
+  background:#fff;color:var(--ink);cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.count{font-family:'Roboto Mono',monospace;font-size:10.5px;color:var(--ink-55);margin-left:auto}
+
+.prose{max-width:64em}
+.prose p{margin:0 0 14px}
+.prose ul{margin:0 0 14px;padding-left:20px}
+.prose li{margin-bottom:9px}
+.warnbox{border-left:4px solid var(--up);padding:4px 0 4px 15px;margin:0 0 16px}
+
+footer{margin:56px 0 64px;border-top:1.5px solid var(--ink);padding-top:16px;
+  font-size:14px;color:var(--ink-55)}
+.srcs{font-family:'Roboto Mono',monospace;font-size:11.5px;line-height:1.7}
+.caution-btn{display:inline-block;margin-top:16px;background:#6b1220;color:#fff;border:none;
+  font-family:'Barlow',sans-serif;font-size:14px;font-weight:600;padding:9px 15px;cursor:pointer}
+.caution-btn:hover{background:#83162a}
+.caution{display:none;background:#0f2038;color:#fff;padding:16px 18px;margin-top:10px;
+  max-width:64em;font-size:14.5px;line-height:1.5}
+.caution.open{display:block}
+.caution p{margin:0 0 10px}
+.caution p:last-child{margin:0}
+
+@media (max-width:900px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .stat:nth-child(2n){border-right:none}
+  .rate{grid-template-columns:minmax(96px,32%) 1fr auto}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="sheet">
+  <div class="sheet-top">
+    <span>New York City &middot; zoning map amendments &middot; housing completed inside them</span>
+    <span id="sheet-date">loading</span>
+  </div>
+  <h1>What rezoning built</h1>
+  <p class="deck">New York City has redrawn its zoning map <b id="d-n">-</b> times since <b id="d-y">-</b>. This is every one of those lines, and every apartment finished inside them. The city <b class="down">lowered</b> density on roughly <b class="down" id="d-lowacres">-</b> acres and <b class="up">raised</b> it on <b class="up" id="d-upacres">-</b>. The land where it allowed more housing produced <b class="up" id="d-ratio">-</b> times as many homes per acre.</p>
+  <div class="stats" id="stats"></div>
+</div>
+
+<section id="mapsec">
+  <div class="shead">
+    <h2>Every line the city drew</h2>
+    <span class="note" id="map-note"></span>
+  </div>
+  <p class="intro">Each shape is one adopted zoning map amendment. Colour it by what the change was for, or by how much housing was actually finished inside it. Click any shape for its record. Where shapes overlap, the land was rezoned more than once.</p>
+  <div class="mapshell">
+    <div class="mapbar">
+      <button data-m="kind" aria-pressed="true">Colour by purpose</button>
+      <button data-m="rate" aria-pressed="false">Colour by housing built</button>
+      <span class="count" id="map-count"></span>
+    </div>
+    <div id="map"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+</section>
+
+<section id="land">
+  <div class="shead">
+    <h2>How much land, which direction</h2>
+    <span class="note">drawn to scale, mature rezonings</span>
+  </div>
+  <p class="intro">The squares below are proportional to acreage. This is the part of the story that the debate usually skips: the city has spent far more of its map lowering density than raising it.</p>
+  <div class="landwrap"><div class="landrow" id="landrow"></div></div>
+</section>
+
+<section id="rates">
+  <div class="shead">
+    <h2>Homes finished per acre</h2>
+    <span class="note" id="rate-note"></span>
+  </div>
+  <p class="intro">Net new permanent homes completed inside each group of boundaries, per acre of that group, counting only completions on or after the rezoning took effect.</p>
+  <div class="rates" id="ratebars"></div>
+</section>
+
+<section id="scatter">
+  <div class="shead">
+    <h2>Every rezoning, plotted</h2>
+    <span class="note">year adopted against homes per acre</span>
+  </div>
+  <p class="intro">One dot per rezoning, sized by acreage. The vertical scale is logarithmic because the range runs from nothing at all to several hundred homes an acre. Dots on the baseline produced no net housing.</p>
+  <div class="chartbox"><div id="scatterchart"></div></div>
+</section>
+
+<section id="tablesec">
+  <div class="shead">
+    <h2>The record</h2>
+    <span class="note">sortable, searchable</span>
+  </div>
+  <div class="filters">
+    <button data-k="all" aria-pressed="true">All</button>
+    <button data-k="more housing allowed" aria-pressed="false">More housing allowed</button>
+    <button data-k="both" aria-pressed="false">Both</button>
+    <button data-k="density lowered" aria-pressed="false">Density lowered</button>
+    <button data-k="unclassified" aria-pressed="false">Unclassified</button>
+    <span class="count" id="tcount"></span>
+  </div>
+  <div class="tablewrap">
+    <table id="rtable">
+      <thead><tr>
+        <th data-s="units">Homes built</th>
+        <th data-s="name">Rezoning</th>
+        <th data-s="year">Effective</th>
+        <th data-s="acres">Acres</th>
+        <th data-s="units_per_acre">Per acre</th>
+        <th data-s="kind">Purpose</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="caveats">
+  <div class="shead">
+    <h2>What this does not prove</h2>
+    <span class="note">read before quoting any number here</span>
+  </div>
+  <div class="prose">
+    <div class="warnbox">
+      <p><b>This is a record of what happened inside the lines, not a measurement of what the rezoning caused.</b> A boundary that contains four thousand new homes may have been the reason they were built, or it may have been drawn around land that was going to be developed regardless. Nothing here separates the two. Read every figure as "what got built here", never as "what this rezoning produced".</p>
+    </div>
+    <ul>
+      <li><b>The housing data starts in 2010.</b> A rezoning adopted in 2004 cannot have its first six years of construction counted. Rates on this page are divided by the years actually observed, not by years since adoption, so cohorts are comparable, but the totals for older rezonings are still floors rather than full counts.</li>
+      <li><b>Most rezonings are unclassified.</b> The city publishes a purpose classification only for the 2002 to 2013 programme, and Mandatory Inclusionary Housing identifies upzonings from 2016 on. Everything else, <span id="c-unc">-</span> of the mature rezonings here, carries no label and is not counted in the comparison between raising and lowering density.</li>
+      <li><b>Boundaries overlap.</b> Land rezoned twice appears in both shapes, and a building inside both counts toward both at the rezoning level. Citywide totals deduplicate by job, so they do not equal the sum of the individual rows.</li>
+      <li><b>"Homes" means net permanent units.</b> Demolitions and conversions subtract. A rezoning can therefore post a negative number, and some do.</li>
+      <li><b>A rezoning is not the only thing on the land.</b> Tax abatements, interest rates, land assembly, the state's affordable housing programmes and the general economy all moved during these decades, and none of them are held constant here.</li>
+      <li><b>Lowering density is not automatically a failure.</b> Contextual rezonings were adopted for stated reasons, including preserving existing built form. Judging them only by homes produced measures them against a goal many of them did not have.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="method">
+  <div class="shead"><h2>How this was built</h2></div>
+  <div class="prose">
+    <p>Four public datasets, joined in space. Full detail in the <a href="METHODOLOGY.html">methodology</a>.</p>
+    <ul>
+      <li><b>Boundaries</b> are the Department of City Planning's adopted zoning map amendments, projected to New York State Plane so that acreage is measured rather than estimated.</li>
+      <li><b>Housing</b> is the department's own housing database: every residential job completed since 2010, geocoded, measured as net change in permanent units. Each is dropped into whichever boundaries contain it.</li>
+      <li><b>Purpose</b> comes from the city's own classification of its 2002 to 2013 rezoning programme, plus Mandatory Inclusionary Housing areas for 2016 onward. No purpose was inferred or invented here.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="srcs" id="srcs"></div>
+  <button class="caution-btn" id="caution-btn">And please read this AI caution.</button>
+  <div class="caution" id="caution">
+    <p>Everything substantive here (the concept, the choice of data, the questions asked of it and the desired layout) was directed by the author, a human. The coding, the spatial work and the file wrangling were primarily in the hands of Anthropic's Claude and Claude Code, under close and skeptical direction.</p>
+    <p>Quality control actually performed on this project: acreage is computed in a projected coordinate system rather than from degrees; an early version wrongly attributed Mandatory Inclusionary Housing areas to older rezonings that merely contained them, which was caught and fixed by requiring the dates to match; rates are divided by observed years so that rezonings predating the housing data are not flattered or penalised; citywide totals are deduplicated by job number because boundaries overlap; the purpose classification is the city's own, with no category invented here; the fetch scripts fail loudly rather than write a truncated file; and every headline figure was independently recomputed from the raw data by a reviewer working blind, with no knowledge of how the page was built.</p>
+    <p>The risks of using AI remain. If you spot a red flag in anything presented here, please say so.</p>
+  </div>
+</footer>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const F=(n,d=0)=>(n===null||n===undefined||isNaN(n))?"-":Number(n).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d});
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const COL={"more housing allowed":"#c8007a","both":"#7a4fa8","density lowered":"#123a6b","unclassified":"#9aa0a8"};
+const SHORT={"more housing allowed":"More housing","both":"Both","density lowered":"Density lowered","unclassified":"Unclassified"};
+let D=null,GEO=null;
+
+Promise.all([
+  fetch("data/rezoning.json").then(r=>r.json()),
+  fetch("data/rezonings.geojson").then(r=>r.ok?r.json():null).catch(()=>null)
+]).then(([d,g])=>{D=d;GEO=g;render();})
+ .catch(e=>{document.getElementById("stats").innerHTML=
+   '<div class="stat" style="grid-column:1/-1"><span class="l">Error</span><div class="v">Data unavailable</div></div>';
+   console.error(e);});
+
+function render(){
+  const h=D.headline, k=D.by_kind;
+  document.getElementById("sheet-date").textContent =
+    "Compiled "+new Date(D.generated_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  document.getElementById("d-n").textContent=F(h.rezonings);
+  document.getElementById("d-y").textContent=h.first_year;
+  document.getElementById("d-lowacres").textContent=F(h.acres_lowered);
+  document.getElementById("d-upacres").textContent=F(h.acres_more_housing);
+  const up=k["more housing allowed"].units_per_acre, dn=k["density lowered"].units_per_acre;
+  document.getElementById("d-ratio").textContent=(up/dn).toFixed(0);
+  document.getElementById("c-unc").textContent=F(h.n_unclassified);
+
+  const stats=[
+    {l:"Zoning map amendments mapped", v:F(h.rezonings), s:h.first_year+" to "+h.last_year},
+    {l:"Net homes completed inside a rezoning since 2010", v:F(h.net_units_inside_rezonings),
+     s:h.share_inside+"% of all net homes finished citywide"},
+    {l:"Acres where density was lowered", v:F(h.acres_lowered), cls:"down",
+     s:h.n_lowered+" rezonings, city's own classification"},
+    {l:"Acres where more housing was allowed", v:F(h.acres_more_housing), cls:"up",
+     s:h.n_more_housing+" rezonings, plus "+h.n_both+" that did both"}
+  ];
+  document.getElementById("stats").innerHTML=stats.map(s=>
+    `<div class="stat"><span class="l">${s.l}</span>
+     <div class="v ${s.cls||""}">${s.v}</div><div class="s">${s.s}</div></div>`).join("");
+
+  document.getElementById("rate-note").textContent =
+    "mature rezonings only, at least "+h.mature_years+" observed years";
+  document.getElementById("map-note").textContent = F(h.rezonings)+" amendments";
+  document.getElementById("map-count").textContent =
+    "completions through "+h.completions_through;
+
+  drawLand(); drawRates(); drawScatter(); drawTable(); drawMap();
+
+  document.getElementById("srcs").innerHTML =
+    "Sources: New York City Department of City Planning zoning map amendments (nyzma); "+
+    "DCP Housing Database, project level file; DCP classification of the 2002-2013 rezoning "+
+    "programme; Mandatory Inclusionary Housing areas. Housing completions run "+
+    h.housing_floor+" through "+h.completions_through+". Data read "+
+    new Date(D.fetched_at).toLocaleDateString("en-US")+".";
+}
+
+/* ---- land squares ---- */
+function drawLand(){
+  const k=D.by_kind;
+  const cells=[
+    {key:"density lowered",c:COL["density lowered"]},
+    {key:"both",c:COL["both"]},
+    {key:"more housing allowed",c:COL["more housing allowed"]},
+    {key:"unclassified",c:COL["unclassified"]}
+  ].map(x=>({...x,acres:k[x.key].acres,units:k[x.key].units}));
+  const max=Math.max(...cells.map(c=>c.acres));
+  const MAXPX=190;
+  document.getElementById("landrow").innerHTML=cells.map(c=>{
+    const px=Math.max(16,MAXPX*Math.sqrt(c.acres/max));
+    return `<div class="landcell">
+      <div class="landsq" style="width:${px}px;height:${px}px;background:${c.c}"></div>
+      <div class="landlab">${SHORT[c.key]}</div>
+      <div class="landnum">${F(c.acres)} acres</div>
+      <div class="landnum">${F(c.units)} homes</div></div>`;
+  }).join("");
+}
+
+/* ---- rate bars ---- */
+function drawRates(){
+  const k=D.by_kind;
+  const rows=["more housing allowed","both","density lowered","unclassified"]
+    .map(key=>({key,...k[key]})).filter(r=>r.n>0);
+  const max=Math.max(...rows.map(r=>r.units_per_acre||0));
+  document.getElementById("ratebars").innerHTML=rows.map(r=>`
+    <div class="rate">
+      <div class="ratelab">${SHORT[r.key]}<span>${r.n} rezonings · ${F(r.acres)} acres</span></div>
+      <div class="ratetrack"><div class="ratefill" style="width:${100*(r.units_per_acre||0)/max}%;background:${COL[r.key]}"></div></div>
+      <div class="rateval" style="color:${COL[r.key]}">${F(r.units_per_acre,1)}</div>
+    </div>`).join("")+
+    `<div style="font-family:'Roboto Mono',monospace;font-size:11px;color:var(--ink-55);margin-top:12px">
+      Homes per acre. ${F(D.by_kind["more housing allowed"].zero)} of the
+      ${D.by_kind["more housing allowed"].n} rezonings that allowed more housing produced none at all.</div>`;
+}
+
+/* ---- scatter ---- */
+function drawScatter(){
+  const rows=D.rezonings.filter(r=>r.mature&&r.acres>0);
+  const W=900,H=430,P={t:16,r:16,b:34,l:52};
+  const y0=min=>Math.max(min,0.02);
+  const years=rows.map(r=>r.year);
+  const xmin=Math.min(...years), xmax=Math.max(...years);
+  const x=v=>P.l+(v-xmin)/(xmax-xmin)*(W-P.l-P.r);
+  const LOMIN=0.02, HIMAX=Math.max(...rows.map(r=>r.units_per_acre||0),10);
+  const ly=v=>{
+    const vv=Math.max(v,LOMIN);
+    return P.t+(1-(Math.log10(vv)-Math.log10(LOMIN))/(Math.log10(HIMAX)-Math.log10(LOMIN)))*(H-P.t-P.b);
+  };
+  const ticks=[0.1,1,10,100].filter(t=>t<=HIMAX);
+  const base=H-P.b;
+  const dots=rows.map(r=>{
+    const v=r.units_per_acre||0;
+    const cy=v<=0?base:ly(v);
+    const rad=Math.max(2,Math.min(15,Math.sqrt(r.acres)/2.6));
+    return `<circle cx="${x(r.year).toFixed(1)}" cy="${cy.toFixed(1)}" r="${rad.toFixed(1)}"
+      fill="${COL[r.kind]}" fill-opacity=".42" stroke="${COL[r.kind]}" stroke-width=".9">
+      <title>${esc(r.name)} (${r.year})
+${F(r.units)} homes · ${F(r.acres,1)} acres · ${F(v,2)} per acre
+${SHORT[r.kind]}</title></circle>`;}).join("");
+  const xt=[];
+  for(let yy=Math.ceil(xmin/5)*5; yy<=xmax; yy+=5) xt.push(yy);
+  document.getElementById("scatterchart").innerHTML=
+   `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Rezonings by year and homes per acre">
+     ${ticks.map(t=>`<line class="gl" x1="${P.l}" x2="${W-P.r}" y1="${ly(t)}" y2="${ly(t)}"/>
+       <text class="ax" x="${P.l-7}" y="${ly(t)+3}" text-anchor="end">${t<1?t:F(t)}</text>`).join("")}
+     <line class="gl" x1="${P.l}" x2="${W-P.r}" y1="${base}" y2="${base}" stroke="#15161a" stroke-dasharray="3 3"/>
+     <text class="ax" x="${P.l-7}" y="${base+3}" text-anchor="end">0</text>
+     ${dots}
+     ${xt.map(yy=>`<text class="ax" x="${x(yy)}" y="${H-12}" text-anchor="middle">${yy}</text>`).join("")}
+     <text class="ax" x="${P.l-40}" y="${P.t+4}" transform="rotate(-90 ${P.l-40} ${P.t+4})"
+       text-anchor="end">homes per acre (log)</text>
+   </svg>
+   <div style="font-family:'Roboto Mono',monospace;font-size:11px;color:var(--ink-55);margin-top:10px">
+     ${rows.length} mature rezonings. Circle area is acreage. Hover for detail.</div>`;
+}
+
+/* ---- table ---- */
+let tkind="all", tsort="units", tdir=-1;
+function drawTable(){
+  let rows=D.rezonings.slice();
+  if(tkind!=="all") rows=rows.filter(r=>r.kind===tkind);
+  rows.sort((a,b)=>{
+    const A=a[tsort],B=b[tsort];
+    if(typeof A==="string") return A.localeCompare(B)*tdir;
+    return ((A??-1e12)-(B??-1e12))*tdir;
+  });
+  document.getElementById("tcount").textContent=rows.length+" rezonings";
+  document.querySelector("#rtable tbody").innerHTML=rows.slice(0,300).map(r=>`
+    <tr><td class="mono" style="font-weight:700">${F(r.units)}</td>
+      <td><span class="nm">${esc(r.name)}</span>
+        <div class="mono" style="font-size:11px;color:var(--ink-55)">${esc(r.ulurp)}${r.truncated?" · counted from 2010":""}</div></td>
+      <td class="mono">${r.effective}</td>
+      <td class="mono">${F(r.acres,1)}</td>
+      <td class="mono">${F(r.units_per_acre,2)}</td>
+      <td><span class="chip" style="color:${COL[r.kind]}">${SHORT[r.kind]}</span></td></tr>`).join("");
+}
+document.querySelectorAll("#tablesec .filters button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    tkind=b.dataset.k;
+    document.querySelectorAll("#tablesec .filters button").forEach(o=>
+      o.setAttribute("aria-pressed",o===b?"true":"false"));
+    drawTable();
+  });
+});
+document.querySelectorAll("#rtable th").forEach(th=>{
+  th.addEventListener("click",()=>{
+    const k=th.dataset.s; if(!k) return;
+    if(tsort===k) tdir*=-1; else {tsort=k; tdir=(k==="name"||k==="kind")?1:-1;}
+    drawTable();
+  });
+});
+
+/* ---- map ---- */
+let mapMode="kind", layer=null, MAP=null;
+function rateColor(v){
+  if(v===null||v===undefined||v<=0) return "#e8eaee";
+  if(v<1) return "#f9d3e8";
+  if(v<5) return "#f09ccb";
+  if(v<20) return "#e055a4";
+  if(v<60) return "#c8007a";
+  return "#7d004c";
+}
+function styleFor(p){
+  return mapMode==="kind"
+    ? {color:"#15161a",weight:.5,fillColor:COL[p.k]||"#9aa0a8",fillOpacity:.62}
+    : {color:"#15161a",weight:.5,fillColor:rateColor(p.upa),fillOpacity:.75};
+}
+function drawMap(){
+  MAP=L.map("map",{scrollWheelZoom:false}).setView([40.715,-73.93],11);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+    {attribution:'&copy; OpenStreetMap, &copy; CARTO, boundaries: NYC Dept. of City Planning',maxZoom:18,opacity:.5}).addTo(MAP);
+  if(!GEO) return;
+  layer=L.geoJSON(GEO,{
+    style:f=>styleFor(f.properties),
+    onEachFeature:(f,l)=>{
+      const p=f.properties;
+      l.bindPopup(`<div class="pn">${esc(p.n)}</div>
+        <div class="pr">Effective ${p.y} · ${F(p.ac,1)} acres · <b style="color:${COL[p.k]}">${SHORT[p.k]}</b></div>
+        <div class="pr">Net homes completed inside since${p.t?" 2010":" then"}: <b>${F(p.un)}</b></div>
+        <div class="pr">Per acre: <b>${F(p.upa,2)}</b></div>
+        <div class="pr" style="margin-top:5px">${esc(p.u)}</div>`);
+    }
+  }).addTo(MAP);
+  drawLegend();
+}
+function drawLegend(){
+  document.getElementById("legend").innerHTML = mapMode==="kind"
+    ? Object.keys(COL).map(k=>`<span><i style="background:${COL[k]}"></i>${SHORT[k]}</span>`).join("")
+    : ["none:#e8eaee","under 1:#f9d3e8","1 to 5:#f09ccb","5 to 20:#e055a4","20 to 60:#c8007a","60+:#7d004c"]
+        .map(s=>{const [l,c]=s.split(":");return `<span><i style="background:${c}"></i>${l}</span>`;})
+        .join("")+'<span style="margin-left:auto">homes per acre</span>';
+}
+document.querySelectorAll(".mapbar button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    mapMode=b.dataset.m;
+    document.querySelectorAll(".mapbar button").forEach(o=>
+      o.setAttribute("aria-pressed",o===b?"true":"false"));
+    if(layer) layer.setStyle(f=>styleFor(f.properties));
+    drawLegend();
+  });
+});
+
+document.getElementById("caution-btn").addEventListener("click",()=>{
+  document.getElementById("caution").classList.toggle("open");
+});
+</script>
+</body>
+</html>

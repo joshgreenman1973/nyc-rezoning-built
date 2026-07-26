@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What rezoning built - methodology</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=Barlow:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#fbfbfc;--ink:#15161a;--ink-55:#61646c;--line:#c9ccd2;--up:#c8007a;--down:#123a6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'Barlow',system-ui,sans-serif;
+  font-size:17px;line-height:1.55}
+.wrap{max-width:54em;margin:0 auto;padding:0 20px 70px}
+.sheet{border:1.5px solid var(--ink);background:#fff;margin:22px 0 0;padding-bottom:16px}
+.sheet-top{padding:7px 14px;border-bottom:1px solid var(--ink);font-family:'Roboto Mono',monospace;
+  font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-55)}
+h1{font-family:'Barlow Condensed',sans-serif;font-weight:900;text-transform:uppercase;
+  font-size:clamp(34px,7vw,62px);line-height:.9;margin:16px 14px 6px;letter-spacing:-.015em}
+.sub{margin:0 14px;color:var(--ink-55);font-size:15px}
+h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;text-transform:uppercase;
+  font-size:27px;margin:34px 0 8px;border-bottom:1.5px solid var(--ink);padding-bottom:4px}
+h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+  font-size:19px;margin:22px 0 5px}
+p{margin:0 0 13px}
+ul{padding-left:20px;margin:0 0 13px}
+li{margin-bottom:8px}
+code{font-family:'Roboto Mono',monospace;font-size:13.5px;background:#eceef1;padding:1px 5px}
+table{border-collapse:collapse;width:100%;font-size:14.5px;margin:10px 0 16px;background:#fff}
+th,td{text-align:left;padding:8px 10px;border:1px solid var(--line);vertical-align:top}
+th{font-family:'Roboto Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-55)}
+a{color:var(--up)}
+.back{display:inline-block;margin:16px 0 0;font-family:'Roboto Mono',monospace;font-size:11.5px;
+  letter-spacing:.06em;text-transform:uppercase}
+.warn{border-left:4px solid var(--up);padding:3px 0 3px 15px;margin:0 0 14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="sheet">
+  <div class="sheet-top">New York City &middot; zoning map amendments &middot; methodology</div>
+  <h1>What rezoning built</h1>
+  <p class="sub">Every join, every threshold and every thing this cannot tell you.</p>
+</div>
+
+<a class="back" href="index.html">&larr; Back to the record</a>
+
+<h2>The question</h2>
+<p>New York City has adopted more than a thousand zoning map amendments. Each one redrew the rules for a piece of the city. This project asks a deliberately narrow question: how much housing was finished inside each of those boundaries afterwards?</p>
+<div class="warn">
+<p>That is a question about <em>association</em>, not cause. A boundary containing four thousand new homes may have caused them, or may have been drawn around land that was going to be developed anyway. Nothing in this method separates the two, and no figure on the site should be read as a causal estimate.</p>
+</div>
+
+<h2>Sources</h2>
+<table>
+<tr><th>What</th><th>Source</th><th>Used for</th></tr>
+<tr><td>Adopted zoning map amendments</td><td>NYC Department of City Planning <code>nyzma</code> feature service</td><td>Boundaries, effective dates, ULURP numbers, names</td></tr>
+<tr><td>Housing Database, project level</td><td>NYC Open Data <code>br6q-ssj3</code></td><td>Every completed residential job since 2010, geocoded, with net change in permanent units</td></tr>
+<tr><td>2002-2013 rezoning classification</td><td>DCP <code>Bloomberg_rezonings</code> feature service</td><td>The city's own statement of what each of those rezonings was for</td></tr>
+<tr><td>Mandatory Inclusionary Housing areas</td><td>NYC Open Data <code>m79g-k9r4</code></td><td>Identifying upzonings from 2016 onward</td></tr>
+</table>
+
+<h2>Geography</h2>
+<p>Boundaries and building points are projected from degrees to <b>EPSG:2263</b>, New York State Plane Long Island in US survey feet, before anything is measured. Acreage is therefore computed from a projected area, not approximated from latitude and longitude. Invalid polygons are repaired with a zero width buffer before use.</p>
+<p>A completed housing job is attributed to a rezoning when its point falls inside that rezoning's polygon. Containment is strict; a building on the boundary line is not counted twice by design.</p>
+
+<h2>Which completions count</h2>
+<p>A job counts toward a rezoning when its completion date is on or after the rezoning's effective date. Completions before that date are kept separately as a "before" figure and never mixed into the main count.</p>
+<p>Housing is measured as <b>net change in Class A units</b>, the city's term for permanent residential units. Demolitions and conversions subtract, so a rezoning can post a negative number, and a few do. Counting only new units and ignoring losses would overstate what the city gained.</p>
+
+<h3>The 2010 floor</h3>
+<p>The Housing Database begins with completions in 2010. A rezoning adopted in 2004 therefore cannot have its first six years of construction counted, and its total is a floor rather than a full count. Two things follow:</p>
+<ul>
+  <li>Such rezonings are flagged in the table as "counted from 2010".</li>
+  <li>Every rate is divided by <b>years actually observed</b>, measured from the later of the effective date and 1 January 2010, not by years since adoption. Without this, a 2003 rezoning would have its housing spread across 23 years while only 16 were visible, and would look worse than a 2018 rezoning purely because of the data's start date.</li>
+</ul>
+<p>A rezoning is called <b>mature</b>, and included in the group comparisons, once it has at least five observed years.</p>
+
+<h2>How purpose was classified</h2>
+<p>No purpose was inferred from the data. Every label comes from the city.</p>
+<ul>
+  <li><b>2002 to 2013:</b> DCP's own published classification of its rezoning programme, joined to the boundaries on ULURP number, which matches exactly. The source strings carry typographical inconsistencies ("Contexual" and "Contextual", "HousingOpportunities" and "Housing Opportunities"), so they are normalised to two independent flags rather than one tidy label.</li>
+  <li><b>2016 onward:</b> Mandatory Inclusionary Housing areas. MIH requires permanently affordable housing in exchange for added residential capacity, so an MIH area is an upzoning by construction.</li>
+  <li><b>Both:</b> fifteen plans carry both flags, typically lowering density on side streets while raising it on the avenues. They are reported as their own category rather than forced into one side.</li>
+  <li><b>Unclassified:</b> everything else, which is most of the list. These are shown on the map and in the table but excluded from the comparison between raising and lowering density.</li>
+</ul>
+
+<h3>A correction worth recording</h3>
+<p>An early version of this analysis matched MIH areas to rezonings on geography alone. That silently handed MIH labels to large older rezonings that merely contain a later MIH area inside their boundary, including a 1995 Long Island City plan and a 2001 bulk amendment. It produced 330 MIH rezonings out of 275 MIH areas, which is impossible on its face and is what exposed the error. The match now also requires the rezoning to date from 2016 or later and to take effect within about a year of the MIH area's adoption. The corrected count is 257.</p>
+
+<h2>Overlapping boundaries</h2>
+<p>Land in New York City is often rezoned more than once, so the polygons overlap. At the level of an individual rezoning, a building inside two boundaries counts toward both, which is correct: both rezonings apply to that land.</p>
+<p>It follows that <b>the individual rows do not sum to the citywide total</b>. Any citywide figure on this site is deduplicated by job number, counting each completed building exactly once no matter how many boundaries contain it.</p>
+
+<h2>What this cannot tell you</h2>
+<ul>
+  <li>Whether a rezoning caused the housing inside it. See above; this is the important one.</li>
+  <li>Whether housing was <em>prevented</em>. A downzoning's effect is the buildings that were never filed, which by definition leave no record in a completions database.</li>
+  <li>Anything about affordability. Net units are counted without regard to price, income restriction or tenure.</li>
+  <li>Anything about projected units. What a rezoning's environmental review forecast is not in these datasets and is not reconstructed here.</li>
+  <li>Whether the boundary is the right unit of analysis. Some amendments cover a single lot and some cover a neighbourhood; per-acre rates are the attempt to make those comparable, and they are imperfect.</li>
+</ul>
+
+<h2>Failure behaviour</h2>
+<p>The fetch script refuses to write a file shorter than expected and exits with an error rather than leaving a truncated dataset in place, since a partial housing file would silently understate construction, which is the exact claim this project makes.</p>
+
+<h2>Code</h2>
+<p>The fetch and build scripts are in the repository alongside this page. Every figure can be reproduced by running them against the same public endpoints.</p>
+
+<a class="back" href="index.html">&larr; Back to the record</a>
+</div>
+</body>
+</html>
