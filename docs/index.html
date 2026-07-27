@@ -110,33 +110,8 @@ h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;text-transform:uppe
 .rateval{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;
   font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
 
-/* ---- sensitivity ---- */
-function drawSens(){
-  const s=D.sensitivity, h=D.headline;
-  document.getElementById("senstable").innerHTML=
-    `<tr><th>Minimum observed years</th><th>Upzonings counted</th><th>Homes/acre, up</th>
-      <th>Homes/acre, down</th><th>Ratio</th></tr>`+
-    s.threshold.map(t=>`<tr class="${t.years===h.mature_years?'used':''}">
-      <td>${t.years===0?"no minimum":t.years+" years"}${t.years===h.mature_years?" (used here)":""}</td>
-      <td>${F(t.up_n)}</td><td>${F(t.up_rate,1)}</td><td>${F(t.down_rate,2)}</td>
-      <td>${t.ratio===null?"-":F(t.ratio,1)+"x"}</td></tr>`).join("");
-  const b=s.bucket;
-  document.getElementById("bucketnote").innerHTML=
-    `The other live choice is what to do with the ${h.n_both} plans that raised density in one
-     part of their area and lowered it in another. Excluding them, as the bars above do, gives
-     <b>${F(b.both_excluded.ratio,1)}x</b>. Counting them as upzonings gives
-     <b>${F(b.both_as_up.ratio,1)}x</b>. Correcting for overlapping boundaries gives
-     <b>${F(b.dedup.ratio,1)}x</b>. Comparing the median rezoning in each group rather than the
-     totals gives <b>${F(b.median_rate.up,1)}</b> against <b>${F(b.median_rate.down,2)}</b> homes
-     per acre. Across every one of these the direction holds and the magnitude does not settle,
-     which is why the headline above states the acreage and not a multiple.`;
-}
 
-/* ---- scatter ---- */
-.chartbox{border:1.5px solid var(--ink);background:#fff;padding:14px 16px 16px}
-.chartbox svg{display:block;width:100%;height:auto;overflow:visible}
-.ax{font-family:'Roboto Mono',monospace;font-size:9.5px;fill:var(--ink-55)}
-.gl{stroke:#e4e6ea;stroke-width:1}
+
 
 /* ---- table ---- */
 .tablewrap{overflow-x:auto;border:1.5px solid var(--ink);background:#fff}
@@ -208,20 +183,29 @@ footer{margin:56px 0 64px;border-top:1.5px solid var(--ink);padding-top:16px;
     <span id="sheet-date">loading</span>
   </div>
   <h1>What rezoning built</h1>
-  <p class="deck">New York City has redrawn its zoning map <b id="d-n">-</b> times since <b id="d-y">-</b>. This is every one of those lines, and every apartment finished inside them. Measured in acres, the city has spent far more of its map <b class="down">lowering</b> density than <b class="up">raising</b> it: about <b class="down" id="d-lowacres">-</b> acres down against <b class="up" id="d-upacres">-</b> up. Housing did follow the upzonings, by a wide margin per acre, but the two sets of lines are drawn on such different principles that the size of that gap says as much about the boundaries as about the buildings. <a href="#hard">Why that comparison is hard.</a></p>
+  <p class="deck">In the last quarter century New York City has run two opposite rezoning programs. From 2002 to 2013 it redrew whole neighborhoods, and mostly downward: <b class="down" id="d-lowacres">-</b> acres <b class="down">closed to density</b>, by the city's own classification, against <b class="up" id="d-up0213">-</b> opened, largely along corridors and downtowns. Since 2016 it has worked site by site in the other direction: <b class="up" id="d-up2016">-</b> rezonings <b class="up">letting housing in</b>, most smaller than two acres, and none its records mark as closing anything. Each program did what it was built to do. This page maps all <b id="d-n">-</b> rezonings since <b id="d-y">-</b> and counts the homes finished inside every line.</p>
   <div class="stats" id="stats"></div>
 </div>
+
+<section id="eras">
+  <div class="shead">
+    <h2>The two eras</h2>
+    <span class="note">acres rezoned per year, by direction</span>
+  </div>
+  <p class="intro">Navy bars, drawn downward, are acres where density was lowered that year. Magenta bars, drawn upward, are acres where more housing was allowed. The switch flips almost overnight: the downzoning program ends in 2013, and from 2016 the city rezones in the opposite direction, in far smaller pieces.</p>
+  <div class="chartbox"><div id="eraschart"></div></div>
+</section>
 
 <section id="mapsec">
   <div class="shead">
     <h2>Every line the city drew</h2>
     <span class="note" id="map-note"></span>
   </div>
-  <p class="intro">Each shape is one adopted zoning map amendment. Colour it by what the change was for, or by how much housing was actually finished inside it. Click any shape for its record. Where shapes overlap, the land was rezoned more than once.</p>
+  <p class="intro">Each shape is one adopted zoning map amendment. Color it by what the change was for, or by how much housing was actually finished inside it. Click any shape for its record. Where shapes overlap, the land was rezoned more than once.</p>
   <div class="mapshell">
     <div class="mapbar">
-      <button data-m="kind" aria-pressed="true">Colour by purpose</button>
-      <button data-m="rate" aria-pressed="false">Colour by housing built</button>
+      <button data-m="kind" aria-pressed="true">Color by purpose</button>
+      <button data-m="rate" aria-pressed="false">Color by housing built</button>
       <span class="count" id="map-count"></span>
     </div>
     <div id="map"></div>
@@ -240,17 +224,17 @@ footer{margin:56px 0 64px;border-top:1.5px solid var(--ink);padding-top:16px;
 
 <section id="rates">
   <div class="shead">
-    <h2>Homes finished per acre</h2>
+    <h2>What happened inside the lines</h2>
     <span class="note" id="rate-note"></span>
   </div>
-  <p class="intro">Net new permanent homes completed inside each group of boundaries, per acre of that group, counting only completions on or after the rezoning took effect.</p>
+  <p class="intro">Net new permanent homes completed inside each group of boundaries, per acre, counting only completions after the rezoning took effect. Read this as two separate stories rather than one ratio: the downzoned neighborhoods stayed roughly as they were, which is what those rezonings were for, and the upzoned sites filled in with housing, which is what those were for. Each program, by this measure, worked.</p>
   <div class="rates" id="ratebars"></div>
 
   <div id="hard" class="hardbox">
     <h3>Why this comparison is hard</h3>
     <p>These two groups are not the same kind of object, and the difference flatters the upzonings before a single building is counted.</p>
-    <p>A rezoning that allowed more housing has a median footprint of <b id="h-upmed">-</b> acres. It is usually drawn tightly around a single development site, often one that is already designed and financed, and frequently applied for <em>because</em> that project exists. A downzoning has a median footprint of <b id="h-downmed">-</b> acres and encloses a whole existing neighbourhood: streets, parks and thousands of houses that were already built and were never going to be replaced.</p>
-    <p>So "homes per acre" is partly a measure of how tightly the lines were drawn. Take the extreme case: a one acre rezoning for a 300 unit tower scores 300 per acre, while a thousand acre downzoning of a neighbourhood that stays exactly as it was scores zero. That produces an enormous ratio and tells you nothing about what zoning did.</p>
+    <p>A rezoning that allowed more housing has a median footprint of <b id="h-upmed">-</b> acres. It is usually drawn tightly around a single development site, often one that is already designed and financed, and frequently applied for <em>because</em> that project exists. A downzoning has a median footprint of <b id="h-downmed">-</b> acres and encloses a whole existing neighborhood: streets, parks and thousands of houses that were already built and were never going to be replaced.</p>
+    <p>So "homes per acre" is partly a measure of how tightly the lines were drawn. Take the extreme case: a one acre rezoning for a 300 unit tower scores 300 per acre, while a thousand acre downzoning of a neighborhood that stays exactly as it was scores zero. That produces an enormous ratio and tells you nothing about what zoning did.</p>
     <p>The direction of the finding survives every test below. The magnitude does not, and no single number should be quoted as the answer.</p>
     <div class="senswrap">
       <table class="senstable" id="senstable"></table>
@@ -259,14 +243,7 @@ footer{margin:56px 0 64px;border-top:1.5px solid var(--ink);padding-top:16px;
   </div>
 </section>
 
-<section id="scatter">
-  <div class="shead">
-    <h2>Every rezoning, plotted</h2>
-    <span class="note">year adopted against homes per acre</span>
-  </div>
-  <p class="intro">One dot per rezoning, sized by acreage. The vertical scale is logarithmic because the range runs from nothing at all to several hundred homes an acre. Dots on the baseline produced no net housing.</p>
-  <div class="chartbox"><div id="scatterchart"></div></div>
-</section>
+
 
 <section id="tablesec">
   <div class="shead">
@@ -276,9 +253,9 @@ footer{margin:56px 0 64px;border-top:1.5px solid var(--ink);padding-top:16px;
   <div class="filters">
     <button data-k="all" aria-pressed="true">All</button>
     <button data-k="more housing allowed" aria-pressed="false">More housing allowed</button>
-    <button data-k="both" aria-pressed="false">Both</button>
+    <button data-k="both" aria-pressed="false">Raised and lowered</button>
     <button data-k="density lowered" aria-pressed="false">Density lowered</button>
-    <button data-k="unclassified" aria-pressed="false">Unclassified</button>
+    <button data-k="unclassified" aria-pressed="false">No stated purpose</button>
     <input id="tsearch" type="search" placeholder="Search name or ULURP" aria-label="Search rezonings">
     <span class="count" id="tcount"></span>
   </div>
@@ -308,12 +285,12 @@ footer{margin:56px 0 64px;border-top:1.5px solid var(--ink);padding-top:16px;
     </div>
     <ul>
       <li><b>The housing data starts in 2010.</b> A rezoning adopted in 2004 cannot have its first six years of construction counted. Rates on this page are divided by the years actually observed, not by years since adoption, so cohorts are comparable, but the totals for older rezonings are still floors rather than full counts.</li>
-      <li><b>Most rezonings are unclassified.</b> The city publishes a purpose classification only for the 2002 to 2013 programme, and Mandatory Inclusionary Housing identifies upzonings from 2016 on. Everything else, <span id="c-unc">-</span> of the mature rezonings here, carries no label and is not counted in the comparison between raising and lowering density.</li>
+      <li><b>Most rezonings are unclassified.</b> The city publishes a purpose classification only for the 2002 to 2013 program, and Mandatory Inclusionary Housing identifies upzonings from 2016 on. Everything else, <span id="c-unc">-</span> of the mature rezonings here, carries no label and is not counted in the comparison between raising and lowering density.</li>
       <li><b>Boundaries overlap.</b> About 15 percent of rezoned land has been rezoned more than once. A building inside two boundaries counts toward both at the rezoning level, and the group totals in the bars and squares above are sums over overlapping shapes. Citywide figures deduplicate by job, so they do not equal the sum of the rows. The effect is small for the two classified groups and large for the unclassified pile, where deduplicating cuts the total from about 192,000 homes to about 141,000.</li>
       <li><b>Some of the map is missing.</b> The source layer holds <span id="c-src">-</span> adopted amendments; <span id="c-drop">-</span> of them carry no effective date, all from 1977 to 1994, and are excluded because there is no way to say which completions came after them. One boundary in the layer is also a fragment: the Brookville rezoning is drawn at 8 acres where the city's own table says 295.</li>
       <li><b>The rates shown are per acre, not per acre per year.</b> The observed-years correction is used to decide which rezonings are old enough to judge, not to scale the bars. Dividing by observed years widens the gap rather than narrowing it, so the bars are the more conservative presentation.</li>
       <li><b>"Homes" means net permanent units.</b> Demolitions and conversions subtract. A rezoning can therefore post a negative number, and some do.</li>
-      <li><b>A rezoning is not the only thing on the land.</b> Tax abatements, interest rates, land assembly, the state's affordable housing programmes and the general economy all moved during these decades, and none of them are held constant here.</li>
+      <li><b>A rezoning is not the only thing on the land.</b> Tax abatements, interest rates, land assembly, the state's affordable housing programs and the general economy all moved during these decades, and none of them are held constant here.</li>
       <li><b>Lowering density is not automatically a failure.</b> Contextual rezonings were adopted for stated reasons, including preserving existing built form. Judging them only by homes produced measures them against a goal many of them did not have.</li>
     </ul>
   </div>
@@ -326,7 +303,7 @@ footer{margin:56px 0 64px;border-top:1.5px solid var(--ink);padding-top:16px;
     <ul>
       <li><b>Boundaries</b> are the Department of City Planning's adopted zoning map amendments, projected to New York State Plane so that acreage is measured rather than estimated.</li>
       <li><b>Housing</b> is the department's own housing database: every residential job completed since 2010, geocoded, measured as net change in permanent units. Each is dropped into whichever boundaries contain it.</li>
-      <li><b>Purpose</b> is the city's own where the city states one: its published classification of the 2002 to 2013 programme, joined on ULURP number. For 2016 onward the city publishes no purpose field, so upzonings are identified by the presence of a Mandatory Inclusionary Housing area, which requires affordable housing in exchange for added capacity. That identification is this project's inference, not the city's label, and it produces most of the upzonings counted here.</li>
+      <li><b>Purpose</b> is the city's own where the city states one: its published classification of the 2002 to 2013 program, joined on ULURP number. For 2016 onward the city publishes no purpose field, so upzonings are identified by the presence of a Mandatory Inclusionary Housing area, which requires affordable housing in exchange for added capacity. That identification is this project's inference, not the city's label, and it produces most of the upzonings counted here.</li>
     </ul>
   </div>
 </section>
@@ -348,7 +325,7 @@ footer{margin:56px 0 64px;border-top:1.5px solid var(--ink);padding-top:16px;
 const F=(n,d=0)=>(n===null||n===undefined||isNaN(n))?"-":Number(n).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d});
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const COL={"more housing allowed":"#c8007a","both":"#7a4fa8","density lowered":"#123a6b","unclassified":"#9aa0a8"};
-const SHORT={"more housing allowed":"More housing","both":"Both","density lowered":"Density lowered","unclassified":"Unclassified"};
+const SHORT={"more housing allowed":"More housing allowed","both":"Raised and lowered","density lowered":"Density lowered","unclassified":"No stated purpose"};
 let D=null,GEO=null;
 
 Promise.all([
@@ -368,7 +345,8 @@ function render(){
   // All rezonings, and counting plans that did both as raising density, which
   // is the least flattering of the defensible ways to state it.
   document.getElementById("d-lowacres").textContent=F(h.all_acres_lowered);
-  document.getElementById("d-upacres").textContent=F(h.all_acres_more_housing+h.all_acres_both);
+  document.getElementById("d-up0213").textContent=F(h.up_acres_2002_2013)+" acres";
+  document.getElementById("d-up2016").textContent=F(h.n_up_2016_on);
   document.getElementById("c-unc").textContent=F(h.n_unclassified);
   document.getElementById("c-src").textContent=F(h.amendments_in_source);
   document.getElementById("c-drop").textContent=F(h.dropped_no_date);
@@ -379,14 +357,13 @@ function render(){
     {l:"Zoning map amendments mapped", v:F(h.distinct_ulurps),
      s:h.first_year+" to "+h.last_year+"; "+h.dropped_no_date+
        " more in the source carry no effective date and are excluded"},
-    {l:"Net homes completed inside a rezoning after it took effect",
-     v:F(h.net_units_inside_after),
-     s:h.share_inside_after+"% of all net homes finished citywide since "+h.housing_floor},
-    {l:"Acres where density was lowered", v:F(h.all_acres_lowered), cls:"down",
-     s:h.all_n_lowered+" rezonings, on the city's own classification"},
-    {l:"Acres where more housing was allowed", v:F(h.all_acres_more_housing+h.all_acres_both),
-     cls:"up", s:h.all_n_more_housing+" rezonings, including "+h.all_n_both+
-       " that raised density in one part and lowered it in another"}
+    {l:"Acres closed to density, 2002 to 2013", v:F(h.all_acres_lowered), cls:"down",
+     s:h.all_n_lowered+" neighborhood rezonings, on the city's own classification"},
+    {l:"Acres opened to housing, 2002 to 2013", v:F(h.up_acres_2002_2013), cls:"up",
+     s:"corridors and downtowns, including "+h.all_n_both+
+       " plans that closed side streets in the same stroke"},
+    {l:"Acres opened to housing since 2016", v:F(h.up_acres_2016_on), cls:"up",
+     s:F(h.n_up_2016_on)+" site rezonings, median "+h.median_acres_2016_on+" acres"}
   ];
   document.getElementById("stats").innerHTML=stats.map(s=>
     `<div class="stat"><span class="l">${s.l}</span>
@@ -398,12 +375,12 @@ function render(){
   document.getElementById("map-count").textContent =
     "completions through "+h.completions_through;
 
-  drawLand(); drawRates(); drawSens(); drawScatter(); drawTable(); drawMap();
+  drawLand(); drawEras(); drawRates(); drawSens(); drawTable(); drawMap();
 
   document.getElementById("srcs").innerHTML =
     "Sources: New York City Department of City Planning zoning map amendments (nyzma); "+
     "DCP Housing Database, project level file; DCP classification of the 2002-2013 rezoning "+
-    "programme; Mandatory Inclusionary Housing areas. Housing completions run "+
+    "program; Mandatory Inclusionary Housing areas. Housing completions run "+
     h.housing_floor+" through "+h.completions_through+". Data read "+
     new Date(D.fetched_at).toLocaleDateString("en-US")+".";
 }
@@ -507,6 +484,49 @@ ${SHORT[r.kind]}</title></circle>`;}).join("");
    </svg>
    <div style="font-family:'Roboto Mono',monospace;font-size:11px;color:var(--ink-55);margin-top:10px">
      ${rows.length} mature rezonings. Circle area is acreage. Hover for detail.</div>`;
+}
+
+/* ---- the two eras ---- */
+function drawEras(){
+  // 1996 onward: earlier years have almost no classified acreage and the
+  // classification sources only begin with the 2002 program anyway.
+  const tl=D.timeline.filter(t=>t.year>=1996);
+  const W=980,H=460,P={t:26,r:16,b:30,l:56};
+  const maxUp=Math.max(...tl.map(t=>t.up)), maxDn=Math.max(...tl.map(t=>t.down));
+  const span=maxUp+maxDn;
+  const zero=P.t+(H-P.t-P.b)*(maxUp/span);
+  const sy=v=>(H-P.t-P.b)*v/span;
+  const bw=(W-P.l-P.r)/tl.length;
+  const ticks=[2000,4000,6000].filter(v=>v<=Math.max(maxUp,maxDn));
+  const bars=tl.map((t,i)=>{
+    const x=P.l+i*bw+bw*0.14, w=bw*0.72;
+    let out="";
+    if(t.up>0) out+=`<rect x="${x}" y="${zero-sy(t.up)}" width="${w}" height="${sy(t.up)}"
+      fill="var(--up)"><title>${t.year}: ${F(t.up)} acres, more housing allowed</title></rect>`;
+    if(t.down>0) out+=`<rect x="${x}" y="${zero}" width="${w}" height="${sy(t.down)}"
+      fill="var(--down)"><title>${t.year}: ${F(t.down)} acres, density lowered</title></rect>`;
+    return out;
+  }).join("");
+  const xlabels=tl.map((t,i)=> t.year%5===0 ?
+    `<text class="ax" x="${P.l+i*bw+bw/2}" y="${H-10}" text-anchor="middle">${t.year}</text>`:"").join("");
+  document.getElementById("eraschart").innerHTML=
+   `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Acres rezoned per year, up versus down">
+     ${ticks.map(v=>`
+       <line class="gl" x1="${P.l}" x2="${W-P.r}" y1="${zero-sy(v)}" y2="${zero-sy(v)}"/>
+       <line class="gl" x1="${P.l}" x2="${W-P.r}" y1="${zero+sy(v)}" y2="${zero+sy(v)}"/>
+       <text class="ax" x="${P.l-7}" y="${zero-sy(v)+3}" text-anchor="end">${F(v/1000,0)}k</text>
+       <text class="ax" x="${P.l-7}" y="${zero+sy(v)+3}" text-anchor="end">${F(v/1000,0)}k</text>`).join("")}
+     <line x1="${P.l}" x2="${W-P.r}" y1="${zero}" y2="${zero}" stroke="var(--ink)" stroke-width="1.2"/>
+     ${bars}${xlabels}
+     <text class="ax" x="${P.l}" y="${P.t-10}" fill="var(--up)" font-weight="700">ACRES OPENED TO MORE HOUSING</text>
+     <text class="ax" x="${P.l}" y="${H-P.b-6}" fill="var(--down)" font-weight="700">ACRES CLOSED TO DENSITY</text>
+   </svg>
+   <div style="font-family:'Roboto Mono',monospace;font-size:11px;color:var(--ink-55);margin-top:10px">
+     Acres per year of adoption, classified rezonings only; plans that did both count as opening.
+     The navy series going quiet after 2013 partly reflects the sources: the city's purpose
+     classification ends with the 2002-2013 program, and the only signal for later years
+     identifies upzonings alone, so a post-2013 downzoning would appear here as unlabeled
+     rather than navy.</div>`;
 }
 
 /* ---- table ---- */

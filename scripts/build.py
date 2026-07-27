@@ -66,7 +66,7 @@ def norm_purpose(p):
     """DCP's purpose strings carry typos and inconsistent casing.
 
     'Lower Density/Contexual', 'Lower Density/Contextual' and
-    'Lower Density/Contexual/HousingOpportunities' all appear. Normalised to
+    'Lower Density/Contexual/HousingOpportunities' all appear. Normalized to
     two independent booleans rather than a single tidy label, because a
     rezoning can genuinely do both in different parts of its area.
     """
@@ -142,7 +142,7 @@ def main():
     # inside that rezoning's boundary.
     # Geography alone is not enough: a large 1995 rezoning physically contains
     # MIH areas mapped twenty years later, and a naive overlap test hands that
-    # old rezoning an MIH label it never had. The MIH programme began in March
+    # old rezoning an MIH label it never had. The MIH program began in March
     # 2016, so a match also requires the rezoning to be from 2016 or later and
     # to take effect within about a year of the MIH area's adoption.
     MIH_START = 2016
@@ -460,8 +460,44 @@ def main():
         "completions_through": max(j["date"] for j in jobs)[:7],
     }
 
+    # ---- the two eras timeline ---------------------------------------------
+    # Acres adopted per year, by direction. "up" includes the mixed plans,
+    # since they added capacity somewhere. After 2013 the "down" series goes
+    # dark because the classification source ends, not because downzoning
+    # stopped; the front end is required to say so.
+    timeline = []
+    tl = collections.defaultdict(lambda: {"up": 0.0, "down": 0.0, "nolabel": 0.0})
+    for r in rows:
+        k = tl[r["year"]]
+        if r["kind"] in ("more housing allowed", "both"):
+            k["up"] += r["acres"]
+        elif r["kind"] == "density lowered":
+            k["down"] += r["acres"]
+        else:
+            k["nolabel"] += r["acres"]
+    for y in sorted(tl):
+        timeline.append({"year": y,
+                         "up": round(tl[y]["up"], 1),
+                         "down": round(tl[y]["down"], 1),
+                         "nolabel": round(tl[y]["nolabel"], 1)})
+
+    # Era splits for the deck: the down program is entirely 2002-2013; the up
+    # acres divide between that same program's corridor upzonings and the
+    # small-site MIH era from 2016.
+    import statistics
+    up_0213 = sum(t["up"] for t in timeline if 2002 <= t["year"] <= 2013)
+    up_2016 = sum(t["up"] for t in timeline if t["year"] >= 2016)
+    up_2016_sel = [r["acres"] for r in rows
+                   if r["year"] >= 2016 and r["kind"] in ("more housing allowed", "both")]
+    headline["up_acres_2002_2013"] = round(up_0213, 1)
+    headline["up_acres_2016_on"] = round(up_2016, 1)
+    headline["n_up_2016_on"] = len(up_2016_sel)
+    headline["median_acres_2016_on"] = round(statistics.median(up_2016_sel), 2) \
+        if up_2016_sel else None
+
     payload = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timeline": timeline,
         "fetched_at": meta.get("fetched_at"),
         "headline": headline,
         "by_kind": by_kind,
